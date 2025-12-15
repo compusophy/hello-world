@@ -153,6 +153,7 @@
     <script>
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
+        let currentOgImage = null;
         
         function wrapText(text, maxWidth) {
             const words = text.split(' ');
@@ -177,7 +178,16 @@
         }
         
         function drawPreview() {
-            const text = document.getElementById('img-text').value || 'hello-world';
+            const text = document.getElementById('img-text').value;
+            
+            // If no text entered, show the current og-image
+            if (!text && currentOgImage) {
+                ctx.drawImage(currentOgImage, 0, 0, 600, 400);
+                return;
+            }
+            
+            // If no text and no image loaded yet, show placeholder
+            const displayText = text || 'enter text...';
 
             // Background Gradient
             const gradient = ctx.createLinearGradient(0, 0, 600, 400);
@@ -187,7 +197,7 @@
             ctx.fillRect(0, 0, 600, 400);
 
             // Text setup
-            ctx.fillStyle = "#00ffaa";
+            ctx.fillStyle = text ? "#00ffaa" : "#555555";
             ctx.font = "bold 48px 'Instrument Serif', Georgia, serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
@@ -195,7 +205,7 @@
             // Wrap text with padding
             const maxWidth = 540;
             const lineHeight = 60;
-            const lines = wrapText(text, maxWidth);
+            const lines = wrapText(displayText, maxWidth);
             
             // Center all lines vertically
             const totalHeight = lines.length * lineHeight;
@@ -205,6 +215,21 @@
             lines.forEach((line, i) => {
                 ctx.fillText(line, 300, startY + i * lineHeight);
             });
+        }
+        
+        function loadCurrentOgImage() {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+                currentOgImage = img;
+                drawPreview();
+            };
+            img.onerror = function() {
+                // If image fails to load, just show placeholder
+                drawPreview();
+            };
+            // Add cache buster to get latest version
+            img.src = '/og-image.png?t=' + Date.now();
         }
 
         async function uploadImage() {
@@ -251,8 +276,8 @@
             }
         }
 
-        // Initial draw
-        drawPreview();
+        // Load current og-image on startup
+        loadCurrentOgImage();
     </script>
     
     <!-- Farcaster Mini App SDK -->
