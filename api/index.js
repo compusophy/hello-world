@@ -6,8 +6,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increased limit to support image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// Serve static files from the current directory (needed for index.html on Vercel)
 app.use(express.static(path.join(__dirname, '..')));
 
 // Simple favicon handler
@@ -56,7 +59,7 @@ app.post('/test-token', async (req, res) => {
     }
 });
 
-// Commit endpoint
+// Commit Text File endpoint
 app.post('/commit', async (req, res) => {
     try {
         const { content, filePath, sha } = req.body;
@@ -75,28 +78,81 @@ app.post('/commit', async (req, res) => {
                 }
             });
 
-            // If file exists, get its SHA. If not (404), we'll create a new file
             if (getResponse.ok) {
                 const currentFile = await getResponse.json();
                 currentSha = currentFile.sha;
             } else if (getResponse.status !== 404) {
+                 // If 404, we are creating new, otherwise error
                 throw new Error(`Failed to get file: ${getResponse.statusText}`);
             }
-            // If 404, currentSha stays undefined, which means we're creating a new file
         }
 
-        // Create or update file
-        const requestBody = {
-            message: currentSha ? `Update ${filePath || 'index.html'} from web editor` : `Create ${filePath || 'index.html'} from web editor`,
-            content: Buffer.from(content).toString('base64')
-        };
-        
-        // Only include SHA if updating existing file
-        if (currentSha) {
-            requestBody.sha = currentSha;
-        }
-
+        // Update file
         const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Update ${filePath || 'index.html'} from web editor`,
+                content: Buffer.from(content).toString('base64'),
+                sha: currentSha
+            })
+        });
+
+        if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            console.error('GitHub API Error:', updateResponse.status, errorText);
+            throw new Error(`Failed to update file: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+        }
+
+        res.json({ success: 'Committed successfully!' });
+
+    } catch (error) {
+        console.error(error);
+        res.json({ error: error.message });
+    }
+});
+
+// Upload Image Endpoint
+app.post('/upload-image', async (req, res) => {
+    try {
+        const { content, filename } = req.body; // content is raw base64 string
+
+        if (!githubToken) {
+            return res.json({ error: 'GitHub not authenticated' });
+        }
+
+        // We will store images in an 'images' folder
+        const filePath = `images/${filename}`;
+
+        // 1. Check if file exists to get SHA (for updating)
+        let sha;
+        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        if (getResponse.ok) {
+            const currentFile = await getResponse.json();
+            sha = currentFile.sha;
+        }
+
+        // 2. Upload to GitHub
+        const requestBody = {
+            message: `Upload image ${filename} via web editor`,
+            content: content // Already base64 encoded from client
+        };
+
+        if (sha) {
+            requestBody.sha = sha;
+        }
+
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -108,11 +164,16 @@ app.post('/commit', async (req, res) => {
 
         if (!updateResponse.ok) {
             const errorText = await updateResponse.text();
-            console.error('GitHub API Error:', updateResponse.status, errorText);
-            throw new Error(`Failed to update file: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+            throw new Error(`GitHub upload failed: ${errorText}`);
         }
 
-        res.json({ success: 'Committed successfully!' });
+        // Construct the Raw URL
+        const rawUrl = `https://raw.githubusercontent.com/compusophy/world-world/main/images/${filename}`;
+        
+        res.json({ 
+            success: 'Image uploaded!', 
+            url: rawUrl 
+        });
 
     } catch (error) {
         console.error(error);
@@ -166,7 +227,7 @@ app.post('/create-pr', async (req, res) => {
             throw new Error(`Failed to create branch: ${createBranchResponse.status} ${createBranchResponse.statusText} - ${errorText}`);
         }
 
-        // Commit changes to the new branch
+        // Get file SHA
         const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -174,12 +235,11 @@ app.post('/create-pr', async (req, res) => {
             }
         });
 
-        if (!getResponse.ok) {
-            const errorText = await getResponse.text();
-            throw new Error(`Failed to get file: ${getResponse.status} ${getResponse.statusText} - ${errorText}`);
+        let fileSha;
+        if (getResponse.ok) {
+            const currentFile = await getResponse.json();
+            fileSha = currentFile.sha;
         }
-
-        const currentFile = await getResponse.json();
 
         const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
@@ -191,7 +251,7 @@ app.post('/create-pr', async (req, res) => {
             body: JSON.stringify({
                 message: 'Update from web editor',
                 content: Buffer.from(content).toString('base64'),
-                sha: currentFile.sha,
+                sha: fileSha,
                 branch: branchName
             })
         });
@@ -281,6 +341,7 @@ app.get('/files', async (req, res) => {
             return res.send('<p>GitHub not authenticated</p>');
         }
 
+        // Recursive function to get files
         const filesResponse = await fetch('https://api.github.com/repos/compusophy/world-world/contents', {
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -413,38 +474,17 @@ app.get('/prs', async (req, res) => {
     }
 });
 
-// Generate OG image on-demand
-app.get('/img', (req, res) => {
-    const text = req.query.text || 'world-world';
-    
-    // We'll generate this server-side using canvas (node-canvas)
-    // For now, redirect to a static placeholder
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // Simple SVG placeholder for now
-    const svg = `
-    <svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:#111;stop-opacity:1" />
-                <stop offset="100%" style="stop-color:#333;stop-opacity:1" />
-            </linearGradient>
-        </defs>
-        <rect width="600" height="400" fill="url(#grad)" />
-        <text x="300" y="180" font-family="Arial" font-size="48" font-weight="bold" fill="#00ffaa" text-anchor="middle">${text}</text>
-        <text x="300" y="240" font-family="Arial" font-size="24" fill="#888" text-anchor="middle">Edit GitHub repos on the go</text>
-    </svg>`;
-    
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.send(svg);
-});
-
-// Serve index.html for root route
+// Explicitly serve index.html for root path (Vercel sometimes needs this even with express.static)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Export the Express app for Vercel
+// Export for Vercel deployment
 module.exports = app;
+
+// Only start server if not running on Vercel
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`world-world editor running on port ${PORT}`);
+    });
+}
