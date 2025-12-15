@@ -52,6 +52,10 @@
       "dest": "/api/index.js"
     },
     {
+      "src": "/upload-image",
+      "dest": "/api/index.js"
+    },
+    {
       "src": "/img",
       "dest": "/api/index.js"
     },
