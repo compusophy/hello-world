@@ -6,8 +6,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increased limit to support image uploads
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(express.static(path.join(__dirname)));
 
 // Simple favicon handler
@@ -56,7 +57,7 @@ app.post('/test-token', async (req, res) => {
     }
 });
 
-// Commit endpoint
+// Commit Text File endpoint
 app.post('/commit', async (req, res) => {
     try {
         const { content, filePath, sha } = req.body;
@@ -75,12 +76,13 @@ app.post('/commit', async (req, res) => {
                 }
             });
 
-            if (!getResponse.ok) {
+            if (getResponse.ok) {
+                const currentFile = await getResponse.json();
+                currentSha = currentFile.sha;
+            } else if (getResponse.status !== 404) {
+                 // If 404, we are creating new, otherwise error
                 throw new Error(`Failed to get file: ${getResponse.statusText}`);
             }
-
-            const currentFile = await getResponse.json();
-            currentSha = currentFile.sha;
         }
 
         // Update file
@@ -105,6 +107,71 @@ app.post('/commit', async (req, res) => {
         }
 
         res.json({ success: 'Committed successfully!' });
+
+    } catch (error) {
+        console.error(error);
+        res.json({ error: error.message });
+    }
+});
+
+// Upload Image Endpoint
+app.post('/upload-image', async (req, res) => {
+    try {
+        const { content, filename } = req.body; // content is raw base64 string
+
+        if (!githubToken) {
+            return res.json({ error: 'GitHub not authenticated' });
+        }
+
+        // We will store images in an 'images' folder
+        const filePath = `images/${filename}`;
+
+        // 1. Check if file exists to get SHA (for updating)
+        let sha;
+        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        if (getResponse.ok) {
+            const currentFile = await getResponse.json();
+            sha = currentFile.sha;
+        }
+
+        // 2. Upload to GitHub
+        const requestBody = {
+            message: `Upload image ${filename} via web editor`,
+            content: content // Already base64 encoded from client
+        };
+
+        if (sha) {
+            requestBody.sha = sha;
+        }
+
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            throw new Error(`GitHub upload failed: ${errorText}`);
+        }
+
+        // Construct the Raw URL
+        const rawUrl = `https://raw.githubusercontent.com/compusophy/world-world/main/images/${filename}`;
+        
+        res.json({ 
+            success: 'Image uploaded!', 
+            url: rawUrl 
+        });
 
     } catch (error) {
         console.error(error);
@@ -158,7 +225,7 @@ app.post('/create-pr', async (req, res) => {
             throw new Error(`Failed to create branch: ${createBranchResponse.status} ${createBranchResponse.statusText} - ${errorText}`);
         }
 
-        // Commit changes to the new branch
+        // Get file SHA
         const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -166,12 +233,11 @@ app.post('/create-pr', async (req, res) => {
             }
         });
 
-        if (!getResponse.ok) {
-            const errorText = await getResponse.text();
-            throw new Error(`Failed to get file: ${getResponse.status} ${getResponse.statusText} - ${errorText}`);
+        let fileSha;
+        if (getResponse.ok) {
+            const currentFile = await getResponse.json();
+            fileSha = currentFile.sha;
         }
-
-        const currentFile = await getResponse.json();
 
         const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
@@ -183,7 +249,7 @@ app.post('/create-pr', async (req, res) => {
             body: JSON.stringify({
                 message: 'Update from web editor',
                 content: Buffer.from(content).toString('base64'),
-                sha: currentFile.sha,
+                sha: fileSha,
                 branch: branchName
             })
         });
@@ -273,6 +339,7 @@ app.get('/files', async (req, res) => {
             return res.send('<p>GitHub not authenticated</p>');
         }
 
+        // Recursive function to get files
         const filesResponse = await fetch('https://api.github.com/repos/compusophy/world-world/contents', {
             headers: {
                 'Authorization': `token ${githubToken}`,
