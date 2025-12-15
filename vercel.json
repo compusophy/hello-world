@@ -11,57 +11,18 @@
     }
   ],
   "routes": [
-    {
-      "src": "/.well-known/farcaster.json",
-      "dest": "/.well-known/farcaster.json"
-    },
-    {
-      "src": "/",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/auth",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/test-token",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/commit",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/create-pr",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/merge-pr",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/files",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/file/(.*)",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/prs",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/upload-image",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/img",
-      "dest": "/api/index.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/$1"
-    }
+    { "src": "/.well-known/farcaster.json", "dest": "/.well-known/farcaster.json" },
+    { "src": "/", "dest": "/api/index.js" },
+    { "src": "/auth", "dest": "/api/index.js" },
+    { "src": "/test-token", "dest": "/api/index.js" },
+    { "src": "/commit", "dest": "/api/index.js" },
+    { "src": "/create-pr", "dest": "/api/index.js" },
+    { "src": "/merge-pr", "dest": "/api/index.js" },
+    { "src": "/files", "dest": "/api/index.js" },
+    { "src": "/file/(.*)", "dest": "/api/index.js" },
+    { "src": "/prs", "dest": "/api/index.js" },
+    { "src": "/upload-image", "dest": "/api/index.js" },
+    { "src": "/og-image.png", "dest": "/api/index.js" },
+    { "src": "/(.*)", "dest": "/$1" }
   ]
 }
