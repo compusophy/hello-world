@@ -6,42 +6,48 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-// Increased limit to support image uploads
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Serve static files from the current directory (needed for index.html on Vercel)
+// Serve static files (needed for index.html on Vercel)
 app.use(express.static(path.join(__dirname, '..')));
 
 // Simple favicon handler
 app.get('/favicon.ico', (req, res) => {
-    res.status(204).end(); // No content
+    res.status(204).end(); 
 });
 
-let githubToken;
+// --- AUTH HELPER ---
+// This fixes the session disconnect bug by checking Env Vars
+const getAuthToken = (req) => {
+    // 1. Check Env Var (Best for Vercel)
+    if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
+    // 2. Check request body (Manual login)
+    if (req.body && req.body.token) return req.body.token;
+    // 3. Fallback to query param (for image proxy)
+    if (req.query && req.query.token) return req.query.token;
+    
+    return null;
+};
 
 // Auth endpoint
 app.post('/auth', (req, res) => {
-    const { token } = req.body;
+    // Just verifies connectivity now
+    const token = getAuthToken(req);
     if (token) {
-        githubToken = token.trim(); // Remove any whitespace
-        console.log('Token received, length:', githubToken.length);
-        res.json({ success: 'GitHub connected!' });
+        res.json({ success: 'Connected via ' + (process.env.GITHUB_TOKEN ? 'Environment Variable' : 'Session') });
     } else {
-        res.json({ error: 'No token provided' });
+        res.json({ error: 'No token found. Set GITHUB_TOKEN in Vercel.' });
     }
 });
 
-// Test token endpoint
 app.post('/test-token', async (req, res) => {
     try {
-        if (!githubToken) {
-            return res.json({ error: 'No token set. Connect first.' });
-        }
+        const token = getAuthToken(req);
+        if (!token) return res.json({ error: 'No token set.' });
 
         const testResponse = await fetch('https://api.github.com/user', {
             headers: {
-                'Authorization': `token ${githubToken}`,
+                'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json'
             }
         });
@@ -50,89 +56,71 @@ app.post('/test-token', async (req, res) => {
             const errorText = await testResponse.text();
             return res.json({ error: `Token test failed: ${testResponse.status} - ${errorText}` });
         }
-
         const user = await testResponse.json();
-        res.json({ success: `Token works! Logged in as: ${user.login}` });
-
+        res.json({ success: `Logged in as: ${user.login}` });
     } catch (error) {
         res.json({ error: error.message });
     }
 });
 
-// Commit Text File endpoint
-app.post('/commit', async (req, res) => {
+// --- INSTANT IMAGE PROXY (The Fix for Caching) ---
+app.get('/og-image.png', async (req, res) => {
     try {
-        const { content, filePath, sha } = req.body;
-
-        if (!githubToken) {
-            return res.json({ error: 'GitHub not authenticated' });
+        const token = getAuthToken(req);
+        // If you don't have Env Vars set, this proxy won't work publicly
+        if (!token) {
+            return res.status(401).send('Missing GITHUB_TOKEN env var');
         }
 
-        // Get current file if sha not provided
-        let currentSha = sha;
-        if (!currentSha) {
-            const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
-                headers: {
-                    'Authorization': `token ${githubToken}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
+        const filename = req.query.name || 'og-image.png';
+        const filePath = `images/${filename}`;
 
-            if (getResponse.ok) {
-                const currentFile = await getResponse.json();
-                currentSha = currentFile.sha;
-            } else if (getResponse.status !== 404) {
-                 // If 404, we are creating new, otherwise error
-                throw new Error(`Failed to get file: ${getResponse.statusText}`);
-            }
-        }
-
-        // Update file
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
-            method: 'PUT',
+        // Fetch from API, NOT Raw CDN (API is instant)
+        const response = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
             headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: `Update ${filePath || 'index.html'} from web editor`,
-                content: Buffer.from(content).toString('base64'),
-                sha: currentSha
-            })
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
         });
 
-        if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            console.error('GitHub API Error:', updateResponse.status, errorText);
-            throw new Error(`Failed to update file: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
+        if (!response.ok) {
+            return res.status(404).send('Image not found');
         }
 
-        res.json({ success: 'Committed successfully!' });
+        const data = await response.json();
+        
+        // GitHub API returns content in base64
+        const imgBuffer = Buffer.from(data.content, 'base64');
+
+        // FORCE NO CACHE
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        
+        res.send(imgBuffer);
 
     } catch (error) {
         console.error(error);
-        res.json({ error: error.message });
+        res.status(500).send(error.message);
     }
 });
 
 // Upload Image Endpoint
 app.post('/upload-image', async (req, res) => {
     try {
-        const { content, filename } = req.body; // content is raw base64 string
+        const { content, filename } = req.body; 
+        const token = getAuthToken(req);
 
-        if (!githubToken) {
-            return res.json({ error: 'GitHub not authenticated' });
-        }
+        if (!token) return res.json({ error: 'GitHub not authenticated' });
 
-        // We will store images in an 'images' folder
         const filePath = `images/${filename}`;
 
-        // 1. Check if file exists to get SHA (for updating)
+        // 1. Get SHA
         let sha;
         const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
             headers: {
-                'Authorization': `token ${githubToken}`,
+                'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json'
             }
         });
@@ -142,20 +130,17 @@ app.post('/upload-image', async (req, res) => {
             sha = currentFile.sha;
         }
 
-        // 2. Upload to GitHub
+        // 2. Upload
         const requestBody = {
-            message: `Upload image ${filename} via web editor`,
-            content: content // Already base64 encoded from client
+            message: `Upload image ${filename}`,
+            content: content,
+            sha: sha || undefined
         };
-
-        if (sha) {
-            requestBody.sha = sha;
-        }
 
         const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
             method: 'PUT',
             headers: {
-                'Authorization': `token ${githubToken}`,
+                'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json',
                 'Content-Type': 'application/json'
             },
@@ -167,16 +152,58 @@ app.post('/upload-image', async (req, res) => {
             throw new Error(`GitHub upload failed: ${errorText}`);
         }
 
-        // Construct the Raw URL
-        const rawUrl = `https://raw.githubusercontent.com/compusophy/world-world/main/images/${filename}`;
+        // RETURN THE PROXY URL INSTEAD OF GITHUB RAW
+        // This ensures the user gets the instant-update version
+        const proxyUrl = `https://world-world.vercel.app/og-image.png?name=${filename}&t=${Date.now()}`;
         
         res.json({ 
             success: 'Image uploaded!', 
-            url: rawUrl 
+            url: proxyUrl 
         });
 
     } catch (error) {
         console.error(error);
+        res.json({ error: error.message });
+    }
+});
+
+// Commit Text File endpoint
+app.post('/commit', async (req, res) => {
+    try {
+        const { content, filePath, sha } = req.body;
+        const token = getAuthToken(req);
+        if (!token) return res.json({ error: 'GitHub not authenticated' });
+
+        let currentSha = sha;
+        if (!currentSha) {
+            const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+                headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+            });
+            if (getResponse.ok) {
+                const f = await getResponse.json();
+                currentSha = f.sha;
+            }
+        }
+
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Update ${filePath} from web editor`,
+                content: Buffer.from(content).toString('base64'),
+                sha: currentSha
+            })
+        });
+
+        if (!updateResponse.ok) throw new Error(await updateResponse.text());
+
+        res.json({ success: 'Committed successfully!' });
+
+    } catch (error) {
         res.json({ error: error.message });
     }
 });
@@ -185,109 +212,53 @@ app.post('/upload-image', async (req, res) => {
 app.post('/create-pr', async (req, res) => {
     try {
         const { title, body, content, filePath } = req.body;
+        const token = getAuthToken(req);
+        if (!token) return res.json({ error: 'GitHub not authenticated' });
 
-        if (!githubToken) {
-            return res.json({ error: 'GitHub not authenticated' });
-        }
-
-        // Generate a unique branch name
         const branchName = `web-editor-${Date.now()}`;
 
-        // First get the current main branch SHA
+        // Get Main Branch
         const mainBranchResponse = await fetch('https://api.github.com/repos/compusophy/world-world/git/ref/heads/main', {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
-
-        if (!mainBranchResponse.ok) {
-            const errorText = await mainBranchResponse.text();
-            throw new Error(`Failed to get main branch: ${mainBranchResponse.status} ${mainBranchResponse.statusText} - ${errorText}`);
-        }
-
         const mainBranch = await mainBranchResponse.json();
 
-        // Create new branch
-        const createBranchResponse = await fetch('https://api.github.com/repos/compusophy/world-world/git/refs', {
+        // Create Branch
+        await fetch('https://api.github.com/repos/compusophy/world-world/git/refs', {
             method: 'POST',
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                ref: `refs/heads/${branchName}`,
-                sha: mainBranch.object.sha
-            })
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainBranch.object.sha })
         });
 
-        if (!createBranchResponse.ok) {
-            const errorText = await createBranchResponse.text();
-            throw new Error(`Failed to create branch: ${createBranchResponse.status} ${createBranchResponse.statusText} - ${errorText}`);
-        }
-
-        // Get file SHA
-        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+        // Get File SHA
+        const getFile = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
+        const currentFile = getFile.ok ? await getFile.json() : {};
 
-        let fileSha;
-        if (getResponse.ok) {
-            const currentFile = await getResponse.json();
-            fileSha = currentFile.sha;
-        }
-
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        // Commit
+        await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 message: 'Update from web editor',
                 content: Buffer.from(content).toString('base64'),
-                sha: fileSha,
+                sha: currentFile.sha,
                 branch: branchName
             })
         });
 
-        if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            throw new Error(`Failed to update file on branch: ${updateResponse.status} ${updateResponse.statusText} - ${errorText}`);
-        }
-
-        // Create PR from new branch to main
+        // PR
         const prResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls', {
             method: 'POST',
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                title: title || 'Update from web editor',
-                body: body || 'Changes made via web editor',
-                head: branchName,
-                base: 'main'
-            })
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title || 'Update', body: body || '', head: branchName, base: 'main' })
         });
-
-        if (!prResponse.ok) {
-            const errorText = await prResponse.text();
-            console.error('GitHub API Error:', prResponse.status, errorText);
-            throw new Error(`Failed to create PR: ${prResponse.status} ${prResponse.statusText} - ${errorText}`);
-        }
 
         const pr = await prResponse.json();
         res.json({ success: `PR created: ${pr.html_url}` });
 
     } catch (error) {
-        console.error(error);
         res.json({ error: error.message });
     }
 });
@@ -295,196 +266,111 @@ app.post('/create-pr', async (req, res) => {
 // Merge PR endpoint
 app.post('/merge-pr', async (req, res) => {
     try {
-        const { prNumber, commitTitle, commitMessage } = req.body;
-
-        if (!githubToken) {
-            return res.json({ error: 'GitHub not authenticated' });
-        }
-
-        if (!prNumber) {
-            return res.json({ error: 'PR number required' });
-        }
+        const { prNumber } = req.body;
+        const token = getAuthToken(req);
+        if (!token) return res.json({ error: 'GitHub not authenticated' });
 
         const mergeResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/pulls/${prNumber}/merge`, {
             method: 'PUT',
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                commit_title: commitTitle || `Merge pull request #${prNumber}`,
-                commit_message: commitMessage || '',
-                merge_method: 'merge' // or 'squash' or 'rebase'
-            })
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({ commit_title: `Merge PR #${prNumber}`, merge_method: 'merge' })
         });
 
-        if (!mergeResponse.ok) {
-            const errorText = await mergeResponse.text();
-            console.error('GitHub API Error:', mergeResponse.status, errorText);
-            throw new Error(`Failed to merge PR: ${mergeResponse.status} ${mergeResponse.statusText} - ${errorText}`);
-        }
-
-        const mergeResult = await mergeResponse.json();
-        res.json({ success: `PR #${prNumber} merged successfully!` });
-
+        if (!mergeResponse.ok) throw new Error(await mergeResponse.text());
+        res.json({ success: `PR #${prNumber} merged!` });
     } catch (error) {
-        console.error(error);
         res.json({ error: error.message });
     }
 });
 
-// List repository files endpoint
+// List files
 app.get('/files', async (req, res) => {
     try {
-        if (!githubToken) {
-            return res.send('<p>GitHub not authenticated</p>');
-        }
+        const token = getAuthToken(req);
+        if (!token) return res.send('<p>Set GITHUB_TOKEN env var</p>');
 
-        // Recursive function to get files
         const filesResponse = await fetch('https://api.github.com/repos/compusophy/world-world/contents', {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
-
-        if (!filesResponse.ok) {
-            const errorText = await filesResponse.text();
-            return res.send(`<p>Error loading files: ${filesResponse.status} ${filesResponse.statusText}</p>`);
-        }
-
+        
+        if (!filesResponse.ok) return res.send(`<p>Error: ${filesResponse.status}</p>`);
+        
         const files = await filesResponse.json();
-
-        if (files.length === 0) {
-            return res.send('<p>No files in repository</p>');
-        }
-
         let html = '<h3>Repository Files</h3>';
         files.forEach(file => {
+            const icon = file.type === 'dir' ? '📁' : '📄';
             if (file.type === 'file') {
-                html += `
-                    <div style="margin:5px;">
-                        <a href="#" onclick="loadFile('${file.path}'); return false;" style="text-decoration:none;">
-                            📄 ${file.name}
-                        </a>
-                    </div>
-                `;
-            } else if (file.type === 'dir') {
-                html += `
-                    <div style="margin:5px;">
-                        📁 ${file.name}/
-                    </div>
-                `;
+                 html += `<div style="margin:5px;"><a href="#" onclick="loadFile('${file.path}'); return false;">${icon} ${file.name}</a></div>`;
+            } else {
+                 html += `<div style="margin:5px;">${icon} ${file.name}/</div>`;
             }
         });
-
         res.send(html);
-
     } catch (error) {
-        console.error(error);
         res.send(`<p>Error: ${error.message}</p>`);
     }
 });
 
-// Load file content endpoint
+// Load file
 app.get('/file/*', async (req, res) => {
     try {
         const filePath = req.params[0];
-
-        if (!githubToken) {
-            return res.json({ error: 'GitHub not authenticated' });
-        }
+        const token = getAuthToken(req);
+        if (!token) return res.json({ error: 'GitHub not authenticated' });
 
         const fileResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath)}`, {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
 
-        if (!fileResponse.ok) {
-            const errorText = await fileResponse.text();
-            return res.json({ error: `Failed to load file: ${fileResponse.status} ${fileResponse.statusText} - ${errorText}` });
-        }
-
+        if (!fileResponse.ok) return res.json({ error: 'File not found' });
+        
         const fileData = await fileResponse.json();
-
-        // Decode base64 content
-        const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
-
         res.json({
-            content: content,
+            content: Buffer.from(fileData.content, 'base64').toString('utf-8'),
             path: filePath,
             sha: fileData.sha
         });
-
     } catch (error) {
-        console.error(error);
         res.json({ error: error.message });
     }
 });
 
-// List PRs endpoint
+// List PRs
 app.get('/prs', async (req, res) => {
     try {
-        if (!githubToken) {
-            return res.send('<p>GitHub not authenticated</p>');
-        }
+        const token = getAuthToken(req);
+        if (!token) return res.send('<p>Set GITHUB_TOKEN env var</p>');
 
         const prsResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls?state=open', {
-            headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+            headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
-
-        if (!prsResponse.ok) {
-            const errorText = await prsResponse.text();
-            return res.send(`<p>Error loading PRs: ${prsResponse.status} ${prsResponse.statusText}</p>`);
-        }
-
+        
         const prs = await prsResponse.json();
-
-        if (prs.length === 0) {
-            return res.send('<p>No open PRs</p>');
-        }
+        if (prs.length === 0) return res.send('<p>No open PRs</p>');
 
         let html = '<h3>Open PRs</h3>';
         prs.forEach(pr => {
             html += `
                 <div style="border:1px solid #ccc; margin:10px; padding:10px;">
                     <h4>PR #${pr.number}: ${pr.title}</h4>
-                    <p>${pr.body || 'No description'}</p>
-                    <p>From: ${pr.head.ref} → ${pr.base.ref}</p>
-                    <form hx-post="/merge-pr" hx-target="#status" hx-swap="innerHTML" style="display:inline;">
+                    <form hx-post="/merge-pr" hx-target="#status" hx-swap="innerHTML">
                         <input type="hidden" name="prNumber" value="${pr.number}">
-                        <input type="hidden" name="commitTitle" value="Merge pull request #${pr.number}">
                         <button type="submit">merge pr</button>
                     </form>
-                </div>
-            `;
+                </div>`;
         });
-
         res.send(html);
-
     } catch (error) {
-        console.error(error);
         res.send(`<p>Error: ${error.message}</p>`);
     }
 });
 
-// Explicitly serve index.html for root path (Vercel sometimes needs this even with express.static)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
 
-// Export for Vercel deployment
 module.exports = app;
 
-// Only start server if not running on Vercel
 if (require.main === module) {
-    app.listen(PORT, () => {
-        console.log(`world-world editor running on port ${PORT}`);
-    });
+    app.listen(PORT, () => console.log(`Running on ${PORT}`));
 }
