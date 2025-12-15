@@ -36,15 +36,6 @@
             gap: 24px;
         }
         
-        h1 {
-            color: #00ffaa;
-            font-size: 2rem;
-            font-weight: 400;
-            font-style: italic;
-            letter-spacing: 0.05em;
-            text-shadow: 0 0 30px rgba(0, 255, 170, 0.3);
-        }
-        
         .input-wrapper {
             width: 100%;
         }
@@ -136,17 +127,7 @@
         
         .success-box p {
             color: #00ffaa;
-            margin-bottom: 10px;
-        }
-        
-        .success-box input {
-            width: 100%;
-            padding: 10px;
-            font-size: 0.85rem;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            color: #fff;
+            margin: 0;
         }
         
         .error {
@@ -156,8 +137,6 @@
 </head>
 <body>
     <div class="container">
-        <h1>world-world</h1>
-        
         <div class="input-wrapper">
             <input type="text" id="img-text" placeholder="enter your text" value="" oninput="drawPreview()">
         </div>
@@ -176,7 +155,7 @@
         const ctx = canvas.getContext('2d');
         
         function drawPreview() {
-            const text = document.getElementById('img-text').value || 'world-world';
+            const text = document.getElementById('img-text').value || 'hello-world';
 
             // Background Gradient
             const gradient = ctx.createLinearGradient(0, 0, 600, 400);
@@ -225,7 +204,6 @@
                     statusDiv.innerHTML = `
                         <div class="success-box">
                             <p>✓ uploaded successfully</p>
-                            <input type="text" value="${data.url}" readonly onclick="this.select()">
                         </div>
                     `;
                 }
