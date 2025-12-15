@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjM1MDkxMSwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDJGREVmM0Y0NzBlQ2QyQmM5YTk3NzU2OEM0M0FEMzg2MGMxNjExRDgifQ",
+    "payload": "eyJkb21haW4iOiJ3b3JsZC13b3JsZC52ZXJjZWwuYXBwIn0",
+    "signature": "0Pm31chWrIcJXkdQPx6dmYiRgNKgw2H+7n7ymeTOP6sInVrSqp3q7BBnlgMnVZbGEj7IP7tdLhYxW4pX3nRM+Bs="
+  },
+  "frame": {
+    "version": "1",
+    "name": "Example Frame",
+    "iconUrl": "https://world-world.vercel.app/icon.png",
+    "homeUrl": "https://world-world.vercel.app",
+    "imageUrl": "https://world-world.vercel.app/image.png",
+    "buttonTitle": "Check this out",
+    "splashImageUrl": "https://world-world.vercel.app/splash.png",
+    "splashBackgroundColor": "#eeccff",
+    "webhookUrl": "https://world-world.vercel.app/api/webhook"
+  }
+}
