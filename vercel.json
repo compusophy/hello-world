@@ -19,4 +19,45 @@
       "src": "/",
       "dest": "/api/index.js"
     },
-    ... keep the rest of your routes ...
+    {
+      "src": "/auth",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/test-token",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/commit",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/create-pr",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/merge-pr",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/files",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/file/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/prs",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/img",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+}
