@@ -9,7 +9,7 @@
     "name": "Example Frame",
     "iconUrl": "https://world-world.vercel.app/icon.png",
     "homeUrl": "https://world-world.vercel.app",
-    "imageUrl": "https://world-world.vercel.app/image.png",
+    "imageUrl": "https://world-world.vercel.app/img?text=world-world",
     "buttonTitle": "Check this out",
     "splashImageUrl": "https://world-world.vercel.app/splash.png",
     "splashBackgroundColor": "#eeccff",
