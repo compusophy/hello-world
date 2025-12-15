@@ -1,141 +1,182 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>world-world editor</title>
+    <title>world-world</title>
     
     <!-- Farcaster Mini App Meta Tags -->
     <meta name="fc:miniapp" content='{"version":"1","imageUrl":"https://world-world.vercel.app/og-image.png?name=og-image.png&t=1765786611643","button":{"title":"🌍 Open Editor","action":{"type":"launch_frame","name":"world-world","url":"https://world-world.vercel.app/","splashImageUrl":"https://world-world.vercel.app/img","splashBackgroundColor":"#111111"}}}' />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        button { cursor: pointer; padding: 5px 10px; }
-        textarea { width: 100%; box-sizing: border-box; }
-        .section { margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body { 
+            font-family: 'Instrument Serif', Georgia, serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
+            padding: 20px;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        h1 {
+            color: #00ffaa;
+            font-size: 2rem;
+            font-weight: 400;
+            font-style: italic;
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 30px rgba(0, 255, 170, 0.3);
+        }
+        
+        .input-wrapper {
+            width: 100%;
+        }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 16px 20px;
+            font-size: 1.1rem;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            color: #fff;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00ffaa;
+            background: rgba(0, 255, 170, 0.05);
+            box-shadow: 0 0 20px rgba(0, 255, 170, 0.15);
+        }
+        
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .canvas-wrapper {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        
+        button {
+            width: 100%;
+            padding: 16px 32px;
+            font-size: 1.1rem;
+            font-family: inherit;
+            font-weight: 400;
+            background: #00ffaa;
+            color: #0a0a0a;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: lowercase;
+            letter-spacing: 0.1em;
+        }
+        
+        button:hover {
+            background: #00cc88;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 255, 170, 0.3);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        #status {
+            width: 100%;
+            text-align: center;
+            min-height: 60px;
+        }
+        
+        .success-box {
+            background: rgba(0, 255, 170, 0.1);
+            border: 1px solid #00ffaa;
+            border-radius: 12px;
+            padding: 16px;
+        }
+        
+        .success-box p {
+            color: #00ffaa;
+            margin-bottom: 10px;
+        }
+        
+        .success-box input {
+            width: 100%;
+            padding: 10px;
+            font-size: 0.85rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #fff;
+        }
+        
+        .error {
+            color: #ff6b6b;
+        }
     </style>
 </head>
 <body>
-    <h1>world-world2</h1>
-
-    <div class="section">
-        <h3>1. Connect</h3>
-        <form hx-post="/auth" hx-target="#status" hx-swap="innerHTML">
-            <input type="password" name="token" placeholder="github token">
-            <button type="submit">connect</button>
-            <button type="button" hx-post="/test-token" hx-target="#status" hx-swap="innerHTML">test token</button>
-        </form>
-    </div>
-
-    <div class="section">
-        <h3>2. Edit Files</h3>
-        <div id="file-browser">
-            <button hx-get="/files" hx-target="#file-list" hx-swap="innerHTML">load repository files</button>
-            <div id="file-list"></div>
-        </div>
-
-        <div id="editor-section" style="display:none; margin-top: 20px;">
-            <h4 id="current-file" style="margin: 5px 0;">Editing: </h4>
-            <form hx-post="/commit" hx-target="#status" hx-swap="innerHTML">
-                <input type="hidden" name="filePath" id="current-file-path">
-                <input type="hidden" name="sha" id="current-file-sha">
-                <textarea name="content" id="file-content" rows="20"></textarea>
-                <br>
-                <button type="submit">commit change</button>
-            </form>
-        </div>
-    </div>
-
-    <div class="section">
-        <h3>3. Create & Merge PRs</h3>
-        <form hx-post="/create-pr" hx-target="#status" hx-swap="innerHTML">
-            <input type="text" name="title" placeholder="pr title" style="width: 100%; margin-bottom: 5px;">
-            <br>
-            <textarea name="body" placeholder="pr description" rows="3"></textarea>
-            <br>
-            <input type="hidden" name="content" value="">
-            <input type="hidden" name="filePath" value="">
-            <button type="submit" onclick="
-                this.form.content.value = document.getElementById('file-content').value;
-                this.form.filePath.value = document.getElementById('current-file-path').value;
-            ">create pr</button>
-        </form>
-
-        <div id="prs-section" style="margin-top: 20px;">
-            <button hx-get="/prs" hx-target="#prs-list" hx-swap="innerHTML">load prs</button>
-            <div id="prs-list"></div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h3>4. Generate & Upload OG Image</h3>
-        <p style="color: #666; font-size: 0.9em;">This creates a real image file in your repo's <code>/images</code> folder.</p>
+    <div class="container">
+        <h1>world-world</h1>
         
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-            <strong>Design:</strong><br>
-            <input type="text" id="img-text" placeholder="Title Text" value="world-world" oninput="drawPreview()" style="width: 45%; margin-right: 5%;">
-            <input type="text" id="img-subtext" placeholder="Subtitle Text" value="Edit GitHub repos on the go" oninput="drawPreview()" style="width: 45%;">
-            <br><br>
-            
-            <!-- Canvas Preview -->
-            <canvas id="previewCanvas" width="600" height="400" style="border:1px solid #ccc; width: 300px; height: 200px; background: #fff;"></canvas>
-            
-            <br><br>
-            <strong>Save:</strong><br>
-            <input type="text" id="img-filename" placeholder="image-name.png" value="og-image.png">
-            <button onclick="uploadImage()" id="upload-btn" style="background: #000; color: #fff; border: none; padding: 8px 15px;">Upload Image to GitHub</button>
-            
-            <div id="upload-status" style="margin-top: 10px; word-break: break-all;"></div>
+        <div class="input-wrapper">
+            <input type="text" id="img-text" placeholder="enter your text" value="" oninput="drawPreview()">
         </div>
+        
+        <div class="canvas-wrapper">
+            <canvas id="previewCanvas" width="600" height="400"></canvas>
+        </div>
+        
+        <button onclick="uploadImage()" id="submit-btn">submit</button>
+        
+        <div id="status"></div>
     </div>
-
-    <div id="status" style="position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 10px; border-radius: 5px; max-width: 300px; display: none;"></div>
 
     <script>
-        // Status monitor to show the fixed div when content changes
-        const statusDiv = document.getElementById('status');
-        const observer = new MutationObserver((mutations) => {
-            if (statusDiv.innerHTML.trim() !== "") {
-                statusDiv.style.display = 'block';
-                setTimeout(() => { statusDiv.style.display = 'none'; statusDiv.innerHTML = ''; }, 5000);
-            }
-        });
-        observer.observe(statusDiv, { childList: true });
-
-        // File Loader
-        async function loadFile(filePath) {
-            try {
-                const response = await fetch(`/file/${encodeURIComponent(filePath)}`);
-                const data = await response.json();
-
-                if (data.error) {
-                    statusDiv.innerHTML = `<p>Error: ${data.error}</p>`;
-                    return;
-                }
-
-                // Show editor section
-                document.getElementById('editor-section').style.display = 'block';
-
-                // Set file info
-                document.getElementById('current-file').textContent = `Editing: ${filePath}`;
-                document.getElementById('current-file-path').value = filePath;
-                document.getElementById('current-file-sha').value = data.sha;
-                document.getElementById('file-content').value = data.content;
-
-                statusDiv.innerHTML = `<p>Loaded ${filePath}</p>`;
-
-            } catch (error) {
-                statusDiv.innerHTML = `<p>Error loading file: ${error.message}</p>`;
-            }
-        }
-
-        // --- Image Generation & Upload Logic ---
-        
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
         
         function drawPreview() {
-            const text = document.getElementById('img-text').value;
-            const subtext = document.getElementById('img-subtext').value;
+            const text = document.getElementById('img-text').value || 'world-world';
 
             // Background Gradient
             const gradient = ctx.createLinearGradient(0, 0, 600, 400);
@@ -144,26 +185,22 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 600, 400);
 
-            // Main Text
+            // Center Text
             ctx.fillStyle = "#00ffaa";
-            ctx.font = "bold 48px Arial";
+            ctx.font = "bold 48px 'Instrument Serif', Georgia, serif";
             ctx.textAlign = "center";
-            ctx.fillText(text, 300, 180);
-
-            // Subtext
-            ctx.fillStyle = "#888888";
-            ctx.font = "24px Arial";
-            ctx.fillText(subtext, 300, 240);
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, 300, 200);
         }
 
         async function uploadImage() {
-            const btn = document.getElementById('upload-btn');
-            const uploadStatus = document.getElementById('upload-status');
-            const filename = document.getElementById('img-filename').value || `img-${Date.now()}.png`;
+            const btn = document.getElementById('submit-btn');
+            const statusDiv = document.getElementById('status');
+            const filename = 'og-image.png';
             
             btn.disabled = true;
-            btn.textContent = "Uploading...";
-            uploadStatus.innerHTML = "Processing...";
+            btn.textContent = "uploading...";
+            statusDiv.innerHTML = "";
 
             try {
                 // Get Base64 from Canvas (remove header)
@@ -183,22 +220,21 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    uploadStatus.innerHTML = `<span style="color:red">Error: ${data.error}</span>`;
+                    statusDiv.innerHTML = `<p class="error">Error: ${data.error}</p>`;
                 } else {
-                    uploadStatus.innerHTML = `
-                        <div style="background: #e6fffa; padding: 10px; border: 1px solid #00ffaa; border-radius: 4px; margin-top: 10px;">
-                            <p style="margin:0; color:green; font-weight:bold;">Success!</p>
-                            <p style="margin:5px 0;">Use this URL for Farcaster:</p>
-                            <input type="text" value="${data.url}" style="width:100%; padding:5px;" readonly onclick="this.select()">
+                    statusDiv.innerHTML = `
+                        <div class="success-box">
+                            <p>✓ uploaded successfully</p>
+                            <input type="text" value="${data.url}" readonly onclick="this.select()">
                         </div>
                     `;
                 }
 
             } catch (err) {
-                uploadStatus.innerHTML = `<span style="color:red">Error: ${err.message}</span>`;
+                statusDiv.innerHTML = `<p class="error">Error: ${err.message}</p>`;
             } finally {
                 btn.disabled = false;
-                btn.textContent = "Upload Image to GitHub";
+                btn.textContent = "submit";
             }
         }
 
@@ -209,7 +245,6 @@
     <!-- Farcaster Mini App SDK -->
     <script type="module">
         import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk'
-        // Notify the Farcaster client that the Mini App is ready
         await sdk.actions.ready()
     </script>
 </body>
