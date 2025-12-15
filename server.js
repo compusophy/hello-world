@@ -69,7 +69,7 @@ app.post('/commit', async (req, res) => {
         // Get current file if sha not provided
         let currentSha = sha;
         if (!currentSha) {
-            const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+            const getResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
                 headers: {
                     'Authorization': `token ${githubToken}`,
                     'Accept': 'application/vnd.github.v3+json'
@@ -86,7 +86,7 @@ app.post('/commit', async (req, res) => {
         }
 
         // Update file
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -128,7 +128,7 @@ app.post('/upload-image', async (req, res) => {
 
         // 1. Check if file exists to get SHA (for updating)
         let sha;
-        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+        const getResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${filePath}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -150,7 +150,7 @@ app.post('/upload-image', async (req, res) => {
             requestBody.sha = sha;
         }
 
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${filePath}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -166,7 +166,7 @@ app.post('/upload-image', async (req, res) => {
         }
 
         // Construct the Raw URL
-        const rawUrl = `https://raw.githubusercontent.com/compusophy/world-world/main/images/${filename}`;
+        const rawUrl = `https://raw.githubusercontent.com/compusophy/hello-world/main/images/${filename}`;
         
         res.json({ 
             success: 'Image uploaded!', 
@@ -192,7 +192,7 @@ app.post('/create-pr', async (req, res) => {
         const branchName = `web-editor-${Date.now()}`;
 
         // First get the current main branch SHA
-        const mainBranchResponse = await fetch('https://api.github.com/repos/compusophy/world-world/git/ref/heads/main', {
+        const mainBranchResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/git/ref/heads/main', {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -207,7 +207,7 @@ app.post('/create-pr', async (req, res) => {
         const mainBranch = await mainBranchResponse.json();
 
         // Create new branch
-        const createBranchResponse = await fetch('https://api.github.com/repos/compusophy/world-world/git/refs', {
+        const createBranchResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/git/refs', {
             method: 'POST',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -226,7 +226,7 @@ app.post('/create-pr', async (req, res) => {
         }
 
         // Get file SHA
-        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        const getResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -239,7 +239,7 @@ app.post('/create-pr', async (req, res) => {
             fileSha = currentFile.sha;
         }
 
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -260,7 +260,7 @@ app.post('/create-pr', async (req, res) => {
         }
 
         // Create PR from new branch to main
-        const prResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls', {
+        const prResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/pulls', {
             method: 'POST',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -303,7 +303,7 @@ app.post('/merge-pr', async (req, res) => {
             return res.json({ error: 'PR number required' });
         }
 
-        const mergeResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/pulls/${prNumber}/merge`, {
+        const mergeResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/pulls/${prNumber}/merge`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${githubToken}`,
@@ -340,7 +340,7 @@ app.get('/files', async (req, res) => {
         }
 
         // Recursive function to get files
-        const filesResponse = await fetch('https://api.github.com/repos/compusophy/world-world/contents', {
+        const filesResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/contents', {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -394,7 +394,7 @@ app.get('/file/*', async (req, res) => {
             return res.json({ error: 'GitHub not authenticated' });
         }
 
-        const fileResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath)}`, {
+        const fileResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath)}`, {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -430,7 +430,7 @@ app.get('/prs', async (req, res) => {
             return res.send('<p>GitHub not authenticated</p>');
         }
 
-        const prsResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls?state=open', {
+        const prsResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/pulls?state=open', {
             headers: {
                 'Authorization': `token ${githubToken}`,
                 'Accept': 'application/vnd.github.v3+json'

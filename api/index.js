@@ -76,7 +76,7 @@ app.get('/og-image.png', async (req, res) => {
         const filePath = `images/${filename}`;
 
         // Fetch from API, NOT Raw CDN (API is instant)
-        const response = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+        const response = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${filePath}`, {
             headers: {
                 'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -118,7 +118,7 @@ app.post('/upload-image', async (req, res) => {
 
         // 1. Get SHA
         let sha;
-        const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+        const getResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${filePath}`, {
             headers: {
                 'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json'
@@ -137,7 +137,7 @@ app.post('/upload-image', async (req, res) => {
             sha: sha || undefined
         };
 
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${filePath}`, {
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${filePath}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${token}`,
@@ -154,7 +154,7 @@ app.post('/upload-image', async (req, res) => {
 
         // RETURN THE PROXY URL INSTEAD OF GITHUB RAW
         // This ensures the user gets the instant-update version
-        const proxyUrl = `https://world-world.vercel.app/og-image.png?name=${filename}&t=${Date.now()}`;
+        const proxyUrl = `https://hello-world-two-sage.vercel.app/og-image.png?name=${filename}&t=${Date.now()}`;
         
         res.json({ 
             success: 'Image uploaded!', 
@@ -176,7 +176,7 @@ app.post('/commit', async (req, res) => {
 
         let currentSha = sha;
         if (!currentSha) {
-            const getResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+            const getResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
                 headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
             });
             if (getResponse.ok) {
@@ -185,7 +185,7 @@ app.post('/commit', async (req, res) => {
             }
         }
 
-        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        const updateResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
             headers: {
                 'Authorization': `token ${token}`,
@@ -218,26 +218,26 @@ app.post('/create-pr', async (req, res) => {
         const branchName = `web-editor-${Date.now()}`;
 
         // Get Main Branch
-        const mainBranchResponse = await fetch('https://api.github.com/repos/compusophy/world-world/git/ref/heads/main', {
+        const mainBranchResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/git/ref/heads/main', {
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
         const mainBranch = await mainBranchResponse.json();
 
         // Create Branch
-        await fetch('https://api.github.com/repos/compusophy/world-world/git/refs', {
+        await fetch('https://api.github.com/repos/compusophy/hello-world/git/refs', {
             method: 'POST',
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: mainBranch.object.sha })
         });
 
         // Get File SHA
-        const getFile = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        const getFile = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
         const currentFile = getFile.ok ? await getFile.json() : {};
 
         // Commit
-        await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
+        await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath || 'index.html')}`, {
             method: 'PUT',
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -249,7 +249,7 @@ app.post('/create-pr', async (req, res) => {
         });
 
         // PR
-        const prResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls', {
+        const prResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/pulls', {
             method: 'POST',
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: title || 'Update', body: body || '', head: branchName, base: 'main' })
@@ -270,7 +270,7 @@ app.post('/merge-pr', async (req, res) => {
         const token = getAuthToken(req);
         if (!token) return res.json({ error: 'GitHub not authenticated' });
 
-        const mergeResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/pulls/${prNumber}/merge`, {
+        const mergeResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/pulls/${prNumber}/merge`, {
             method: 'PUT',
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
             body: JSON.stringify({ commit_title: `Merge PR #${prNumber}`, merge_method: 'merge' })
@@ -289,7 +289,7 @@ app.get('/files', async (req, res) => {
         const token = getAuthToken(req);
         if (!token) return res.send('<p>Set GITHUB_TOKEN env var</p>');
 
-        const filesResponse = await fetch('https://api.github.com/repos/compusophy/world-world/contents', {
+        const filesResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/contents', {
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
         
@@ -318,7 +318,7 @@ app.get('/file/*', async (req, res) => {
         const token = getAuthToken(req);
         if (!token) return res.json({ error: 'GitHub not authenticated' });
 
-        const fileResponse = await fetch(`https://api.github.com/repos/compusophy/world-world/contents/${encodeURIComponent(filePath)}`, {
+        const fileResponse = await fetch(`https://api.github.com/repos/compusophy/hello-world/contents/${encodeURIComponent(filePath)}`, {
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
 
@@ -341,7 +341,7 @@ app.get('/prs', async (req, res) => {
         const token = getAuthToken(req);
         if (!token) return res.send('<p>Set GITHUB_TOKEN env var</p>');
 
-        const prsResponse = await fetch('https://api.github.com/repos/compusophy/world-world/pulls?state=open', {
+        const prsResponse = await fetch('https://api.github.com/repos/compusophy/hello-world/pulls?state=open', {
             headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json' }
         });
         

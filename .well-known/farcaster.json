@@ -6,13 +6,13 @@
   },
   "frame": {
     "version": "1",
-    "name": "Example Frame",
-    "iconUrl": "https://world-world.vercel.app/icon.png",
+    "name": "hello-world",
+    "iconUrl": "https://world-world.vercel.app/og-image.png?name=og-image.png&t=1765786611643",
     "homeUrl": "https://world-world.vercel.app",
-    "imageUrl": "https://world-world.vercel.app/img?text=world-world",
-    "buttonTitle": "Check this out",
-    "splashImageUrl": "https://world-world.vercel.app/splash.png",
-    "splashBackgroundColor": "#eeccff",
+    "imageUrl": "https://world-world.vercel.app/og-image.png?name=og-image.png&t=1765786611643",
+    "buttonTitle": "edit",
+    "splashImageUrl": "https://world-world.vercel.app/og-image.png?name=og-image.png&t=1765786611643",
+    "splashBackgroundColor": "#000000",
     "webhookUrl": "https://world-world.vercel.app/api/webhook"
   }
 }
