@@ -154,6 +154,28 @@
         const canvas = document.getElementById('previewCanvas');
         const ctx = canvas.getContext('2d');
         
+        function wrapText(text, maxWidth) {
+            const words = text.split(' ');
+            const lines = [];
+            let currentLine = '';
+            
+            for (const word of words) {
+                const testLine = currentLine ? currentLine + ' ' + word : word;
+                const metrics = ctx.measureText(testLine);
+                
+                if (metrics.width > maxWidth && currentLine) {
+                    lines.push(currentLine);
+                    currentLine = word;
+                } else {
+                    currentLine = testLine;
+                }
+            }
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            return lines;
+        }
+        
         function drawPreview() {
             const text = document.getElementById('img-text').value || 'hello-world';
 
@@ -164,12 +186,25 @@
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 600, 400);
 
-            // Center Text
+            // Text setup
             ctx.fillStyle = "#00ffaa";
             ctx.font = "bold 48px 'Instrument Serif', Georgia, serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(text, 300, 200);
+            
+            // Wrap text with padding
+            const maxWidth = 540;
+            const lineHeight = 60;
+            const lines = wrapText(text, maxWidth);
+            
+            // Center all lines vertically
+            const totalHeight = lines.length * lineHeight;
+            const startY = (400 - totalHeight) / 2 + lineHeight / 2;
+            
+            // Draw each line
+            lines.forEach((line, i) => {
+                ctx.fillText(line, 300, startY + i * lineHeight);
+            });
         }
 
         async function uploadImage() {
